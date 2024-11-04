@@ -3,7 +3,7 @@ from django.db.models import Sum, F
 from django.utils import timezone
 from admin_app.models import CustomUser  # Import custom user
 from produk_app.models import Produk
-
+from django.core.exceptions import ValidationError
 
 class Transaksi(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)  # Petugas kasir yang melakukan transaksi
@@ -141,14 +141,23 @@ class Invoice(models.Model):
         return sum(item.subtotal() for item in self.items.all())
 
 class InvoiceItem(models.Model):
-    invoice = models.ForeignKey(Invoice, related_name='items', on_delete=models.CASCADE)
-    cart_item = models.ForeignKey(CartItem, on_delete=models.CASCADE, default=1)
+    invoice = models.ForeignKey('Invoice', related_name='items', on_delete=models.CASCADE)
+    cart_item = models.ForeignKey('CartItem', on_delete=models.CASCADE, default=1)
     jumlah = models.PositiveIntegerField()
+
+    class Meta:
+        verbose_name = 'Item Invoice'
+        verbose_name_plural = 'Item Invoice'
 
     def subtotal(self):
         """Menghitung subtotal berdasarkan jumlah dan harga per item di CartItem."""
         harga = self.cart_item.produk.harga_khusus if self.cart_item.tipe_harga == 'harga_khusus' else self.cart_item.produk.harga_umum
         return self.jumlah * harga
+
+    def clean(self):
+        """Validasi untuk memastikan jumlah lebih besar dari nol."""
+        if self.jumlah <= 0:
+            raise ValidationError('Jumlah harus lebih besar dari nol.')
 
     def __str__(self):
         return f"{self.jumlah} x {self.cart_item.produk.nama} - Invoice #{self.invoice.nomor_invoice}"
